@@ -179,6 +179,9 @@
 <script>
   var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwJFsZHidHzFcDu4aJeaRzBgWyHO8AQ-teo4v-AXPV_aFqzjQTo7WnAuyw1S0kV-fol/exec";
 
+  // FIX: prevent double-submit
+  var isSubmitting = false;
+
   function onInput() {
     var val = document.getElementById('phoneInput').value.trim();
     document.getElementById('submitBtn').disabled = val.length < 10;
@@ -204,13 +207,29 @@
   }
 
   function submitForm() {
+    // FIX: prevent double-tap
+    if (isSubmitting) return;
     var phone = document.getElementById('phoneInput').value.trim();
     if (phone.length < 10) return;
+
+    isSubmitting = true;
     document.getElementById('formState').style.display = 'none';
     document.getElementById('loadingState').classList.add('active');
 
+    // FIX: 20 second timeout so spinner doesn't run forever
+    var timedOut = false;
+    var timeout = setTimeout(function() {
+      timedOut = true;
+      isSubmitting = false;
+      document.getElementById('loadingState').classList.remove('active');
+      showForm("Request timed out. Please check your connection and try again.");
+    }, 20000);
+
     jsonp(APPS_SCRIPT_URL + '?action=submitAttendance&phone=' + encodeURIComponent(phone),
       function(data) {
+        if (timedOut) return; // arrived after timeout, ignore
+        clearTimeout(timeout);
+        isSubmitting = false;
         document.getElementById('loadingState').classList.remove('active');
         if (!data) { showForm("Something went wrong. Please try again."); return; }
         if (!data.success) { showForm(data.error || "Something went wrong."); return; }
